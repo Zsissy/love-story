@@ -20,5 +20,6 @@ npm run dev
 
 - [SUPABASE_SETUP.md](./SUPABASE_SETUP.md)
 
-如果未配置 Supabase，系统会退回本地模式（仅当前浏览器可见）。
+登录页支持“匹配码”共享模式：两人输入同一码可实时共享网站数据。
 
+如果未配置 Supabase，系统会退回本地模式（仅当前浏览器可见）。

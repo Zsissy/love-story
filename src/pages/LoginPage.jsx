@@ -19,6 +19,7 @@ function LoginPage() {
   const [mode, setMode] = useState('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [matchCode, setMatchCode] = useState('')
   const [registerUsername, setRegisterUsername] = useState('')
   const [registerPassword, setRegisterPassword] = useState('')
   const [registerAvatar, setRegisterAvatar] = useState('')
@@ -35,7 +36,7 @@ function LoginPage() {
   const handleSubmit = async (event) => {
     event.preventDefault()
     setIsSubmitting(true)
-    const result = await login(username, password)
+    const result = await login(username, password, matchCode)
     setIsSubmitting(false)
     if (!result.ok) {
       setError(result.message || '登录失败')
@@ -129,6 +130,12 @@ function LoginPage() {
               onChange={(event) => setPassword(event.target.value)}
               placeholder="密码"
               autoComplete="current-password"
+              disabled={isSubmitting}
+            />
+            <input
+              value={matchCode}
+              onChange={(event) => setMatchCode(event.target.value)}
+              placeholder="匹配码（两人填写同码可同步）"
               disabled={isSubmitting}
             />
             <button className="primary" type="submit" disabled={isSubmitting}>

@@ -161,13 +161,15 @@ export function AuthProvider({ children }) {
   }, [refreshUsers])
 
   const login = useCallback(
-    async (username, password) => {
+    async (username, password, matchCode = '') => {
       const normalizedUsername = username.trim()
+      const normalizedMatchCode = String(matchCode || '').trim()
 
       if (normalizedUsername === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
         const nextUser = {
           username: ADMIN_USERNAME,
           role: 'admin',
+          matchCode: normalizedMatchCode,
         }
         setUser(nextUser)
         if (IS_CLOUD_MODE) await refreshUsers()
@@ -205,6 +207,7 @@ export function AuthProvider({ children }) {
         username: found.username,
         role: found.role,
         avatar: found.avatar || '',
+        matchCode: normalizedMatchCode,
       }
       setUser(nextUser)
       return { ok: true, user: nextUser }
@@ -348,6 +351,182 @@ export function AuthProvider({ children }) {
     [refreshUsers],
   )
 
+  const updateCurrentUsername = useCallback(
+    async (nextUsername) => {
+      const normalizedUsername = String(nextUsername || '').trim()
+
+      if (!user) {
+        return { ok: false, message: '请先登录。' }
+      }
+
+      if (user.role === 'admin') {
+        return { ok: false, message: '管理员账号不支持修改用户名。' }
+      }
+
+      if (!normalizedUsername) {
+        return { ok: false, message: '用户名不能为空。' }
+      }
+
+      if (normalizedUsername === ADMIN_USERNAME) {
+        return { ok: false, message: '该用户名不可用。' }
+      }
+
+      if (normalizedUsername === user.username) {
+        return { ok: true, message: '用户名未变化。' }
+      }
+
+      const sourceUsers = IS_CLOUD_MODE ? await refreshUsers() : usersRef.current
+      const duplicated = sourceUsers.some(
+        (item) => item.username === normalizedUsername && item.id !== user.id,
+      )
+      if (duplicated) {
+        return { ok: false, message: '该用户名已被占用。' }
+      }
+
+      if (IS_CLOUD_MODE && supabase) {
+        const { error } = await supabase
+          .from(USERS_TABLE)
+          .update({ username: normalizedUsername })
+          .eq('id', user.id)
+        if (error) {
+          const isDuplicate =
+            error.code === '23505' || String(error.message || '').includes('duplicate')
+          return {
+            ok: false,
+            message: isDuplicate ? '该用户名已被占用。' : '修改失败，请稍后重试。',
+          }
+        }
+        setUser((prev) => (prev ? { ...prev, username: normalizedUsername } : prev))
+        await refreshUsers()
+        return { ok: true, message: '用户名修改成功。' }
+      }
+
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.id === user.id
+            ? {
+                ...item,
+                username: normalizedUsername,
+              }
+            : item,
+        ),
+      )
+      setUser((prev) => (prev ? { ...prev, username: normalizedUsername } : prev))
+      return { ok: true, message: '用户名修改成功。' }
+    },
+    [refreshUsers, user],
+  )
+
+  const updateCurrentPassword = useCallback(
+    async (currentPassword, nextPassword) => {
+      if (!user) return { ok: false, message: '请先登录。' }
+      if (user.role === 'admin') {
+        return { ok: false, message: '管理员账号不支持在此修改密码。' }
+      }
+
+      const current = String(currentPassword || '').trim()
+      const next = String(nextPassword || '').trim()
+
+      if (!current || !next) {
+        return { ok: false, message: '请填写当前密码和新密码。' }
+      }
+
+      if (next.length < 6) {
+        return { ok: false, message: '新密码至少 6 位。' }
+      }
+
+      const sourceUsers = IS_CLOUD_MODE ? await refreshUsers() : usersRef.current
+      const target = sourceUsers.find((item) => item.id === user.id)
+      if (!target) {
+        return { ok: false, message: '用户不存在，请重新登录。' }
+      }
+
+      if (target.password !== current) {
+        return { ok: false, message: '当前密码错误。' }
+      }
+
+      if (current === next) {
+        return { ok: false, message: '新密码不能与当前密码相同。' }
+      }
+
+      if (IS_CLOUD_MODE && supabase) {
+        const { error } = await supabase
+          .from(USERS_TABLE)
+          .update({ password: next })
+          .eq('id', user.id)
+        if (error) {
+          return { ok: false, message: '修改失败，请稍后重试。' }
+        }
+        await refreshUsers()
+        return { ok: true, message: '密码修改成功。' }
+      }
+
+      setUsers((prev) =>
+        prev.map((item) => (item.id === user.id ? { ...item, password: next } : item)),
+      )
+      return { ok: true, message: '密码修改成功。' }
+    },
+    [refreshUsers, user],
+  )
+
+  const updateCurrentAvatar = useCallback(
+    async (avatar) => {
+      if (!user) return { ok: false, message: '请先登录。' }
+      if (user.role === 'admin') {
+        return { ok: false, message: '管理员账号不支持在此修改头像。' }
+      }
+      return setUserAvatar(user.id, avatar || '')
+    },
+    [setUserAvatar, user],
+  )
+
+  const resetUserPassword = useCallback(
+    async (id, nextPassword) => {
+      if (user?.role !== 'admin') {
+        return { ok: false, message: '仅管理员可重置密码。' }
+      }
+
+      const next = String(nextPassword || '').trim()
+      if (!next) {
+        return { ok: false, message: '请输入新密码。' }
+      }
+      if (next.length < 6) {
+        return { ok: false, message: '新密码至少 6 位。' }
+      }
+
+      if (IS_CLOUD_MODE && supabase) {
+        const { error } = await supabase
+          .from(USERS_TABLE)
+          .update({
+            password: next,
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: user.username || ADMIN_USERNAME,
+          })
+          .eq('id', id)
+        if (error) {
+          return { ok: false, message: '重置失败，请稍后重试。' }
+        }
+        await refreshUsers()
+        return { ok: true, message: '密码已重置。' }
+      }
+
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                password: next,
+                reviewedAt: new Date().toISOString(),
+                reviewedBy: user.username || ADMIN_USERNAME,
+              }
+            : item,
+        ),
+      )
+      return { ok: true, message: '密码已重置。' }
+    },
+    [refreshUsers, user],
+  )
+
   const logout = useCallback(() => setUser(null), [])
 
   const value = useMemo(
@@ -358,6 +537,10 @@ export function AuthProvider({ children }) {
       register,
       reviewUser,
       setUserAvatar,
+      updateCurrentUsername,
+      updateCurrentPassword,
+      updateCurrentAvatar,
+      resetUserPassword,
       refreshUsers,
       logout,
       isAuthenticated: Boolean(user),
@@ -374,6 +557,10 @@ export function AuthProvider({ children }) {
       register,
       reviewUser,
       setUserAvatar,
+      updateCurrentUsername,
+      updateCurrentPassword,
+      updateCurrentAvatar,
+      resetUserPassword,
       syncError,
       user,
       users,

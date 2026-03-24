@@ -1,11 +1,19 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { createClient } from '@supabase/supabase-js/dist/index.mjs'
 import { buildFiveYears, forceDiaryStartYear, formatDate } from '../lib/date'
-import { safeReadArray, saveJson } from '../lib/storage'
+import { useAuth } from './AuthContext'
 
-const DIARY_KEY = 'love-story-diary-v1'
-const LOVE_KEY = 'love-story-love-logs-v1'
-const MAP_KEY = 'love-story-map-cities-v1'
+const ROOM_TABLE = 'app_sync_rooms'
+const ROOM_LOCAL_PREFIX = 'love-story-room-v3'
 
 const AUTHORS = ['小茭', '小猪']
 
@@ -73,6 +81,18 @@ const CITY_COORDS = {
   哈尔滨: { lng: 126.6424, lat: 45.7569, province: '黑龙江省' },
 }
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+const IS_CLOUD_MODE = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY)
+
+const supabase = IS_CLOUD_MODE
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: false,
+      },
+    })
+  : null
+
 function sortByDateDesc(items) {
   return [...items].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -136,19 +156,248 @@ function resolveCityCoordinate(cityName) {
   return null
 }
 
+function getDefaultRoomData() {
+  return {
+    selectedDate: forceDiaryStartYear(formatDate(new Date())),
+    savedDiaryEntries: [],
+    loveLogs: normalizeLoveLogs(DEFAULT_LOVE_LOGS),
+    mapCities: normalizeMapCities(DEFAULT_CITIES),
+    updatedAt: '',
+  }
+}
+
+function normalizeRoomData(payload) {
+  const base = getDefaultRoomData()
+  return {
+    selectedDate: forceDiaryStartYear(payload?.selectedDate || payload?.selected_date || base.selectedDate),
+    savedDiaryEntries: Array.isArray(payload?.savedDiaryEntries || payload?.diary_entries)
+      ? payload.savedDiaryEntries || payload.diary_entries
+      : [],
+    loveLogs: normalizeLoveLogs(
+      Array.isArray(payload?.loveLogs || payload?.love_logs)
+        ? payload.loveLogs || payload.love_logs
+        : base.loveLogs,
+    ),
+    mapCities: normalizeMapCities(
+      Array.isArray(payload?.mapCities || payload?.map_cities)
+        ? payload.mapCities || payload.map_cities
+        : base.mapCities,
+    ),
+    updatedAt: payload?.updatedAt || payload?.updated_at || '',
+  }
+}
+
+function toCloudRow(roomCode, roomData, updatedAt = new Date().toISOString()) {
+  return {
+    room_code: roomCode,
+    selected_date: roomData.selectedDate,
+    diary_entries: roomData.savedDiaryEntries,
+    love_logs: roomData.loveLogs,
+    map_cities: roomData.mapCities,
+    updated_at: updatedAt,
+  }
+}
+
+function toLocalStorageKey(roomCode) {
+  return `${ROOM_LOCAL_PREFIX}-${encodeURIComponent(roomCode)}`
+}
+
+function readLocalRoom(roomCode) {
+  try {
+    const raw = localStorage.getItem(toLocalStorageKey(roomCode))
+    if (!raw) return getDefaultRoomData()
+    return normalizeRoomData(JSON.parse(raw))
+  } catch {
+    return getDefaultRoomData()
+  }
+}
+
+function writeLocalRoom(roomCode, roomData) {
+  localStorage.setItem(toLocalStorageKey(roomCode), JSON.stringify(roomData))
+}
+
+function normalizeMatchCode(text) {
+  return String(text || '').trim()
+}
+
+function resolveRoomCode(user) {
+  const matchCode = normalizeMatchCode(user?.matchCode)
+  if (matchCode) return `pair:${matchCode}`
+  return `user:${user?.id || user?.username || 'default'}`
+}
+
+async function fetchCloudRoom(roomCode) {
+  if (!supabase) return getDefaultRoomData()
+
+  const { data, error } = await supabase
+    .from(ROOM_TABLE)
+    .select('*')
+    .eq('room_code', roomCode)
+    .maybeSingle()
+
+  if (error) throw error
+
+  if (data) return normalizeRoomData(data)
+
+  const base = getDefaultRoomData()
+  const now = new Date().toISOString()
+  const { error: upsertError } = await supabase
+    .from(ROOM_TABLE)
+    .upsert(toCloudRow(roomCode, base, now), { onConflict: 'room_code' })
+  if (upsertError) throw upsertError
+  return { ...base, updatedAt: now }
+}
+
 const LoveStoryContext = createContext(null)
 
 export function LoveStoryProvider({ children }) {
-  const [selectedDate, setSelectedDate] = useState(() =>
-    forceDiaryStartYear(formatDate(new Date())),
-  )
-  const [savedDiaryEntries, setSavedDiaryEntries] = useState(() => safeReadArray(DIARY_KEY, []))
-  const [loveLogs, setLoveLogs] = useState(() =>
-    normalizeLoveLogs(safeReadArray(LOVE_KEY, DEFAULT_LOVE_LOGS)),
-  )
-  const [mapCities, setMapCities] = useState(() =>
-    normalizeMapCities(safeReadArray(MAP_KEY, DEFAULT_CITIES)),
-  )
+  const { user, isAuthenticated } = useAuth()
+  const roomCode = useMemo(() => resolveRoomCode(user), [user])
+
+  const [selectedDate, setSelectedDateState] = useState(() => forceDiaryStartYear(formatDate(new Date())))
+  const [savedDiaryEntries, setSavedDiaryEntries] = useState([])
+  const [loveLogs, setLoveLogs] = useState(() => normalizeLoveLogs(DEFAULT_LOVE_LOGS))
+  const [mapCities, setMapCities] = useState(() => normalizeMapCities(DEFAULT_CITIES))
+  const [isRoomReady, setIsRoomReady] = useState(false)
+  const [isRoomSyncing, setIsRoomSyncing] = useState(false)
+  const [roomSyncError, setRoomSyncError] = useState('')
+
+  const skipNextCloudWriteRef = useRef(false)
+  const lastRemoteUpdatedAtRef = useRef('')
+
+  useEffect(() => {
+    let cancelled = false
+
+    const hydrateRoom = async () => {
+      setIsRoomReady(false)
+      setRoomSyncError('')
+
+      if (IS_CLOUD_MODE && supabase && isAuthenticated) {
+        setIsRoomSyncing(true)
+        try {
+          const remote = await fetchCloudRoom(roomCode)
+          if (cancelled) return
+          skipNextCloudWriteRef.current = true
+          lastRemoteUpdatedAtRef.current = remote.updatedAt || ''
+          setSelectedDateState(remote.selectedDate)
+          setSavedDiaryEntries(remote.savedDiaryEntries)
+          setLoveLogs(remote.loveLogs)
+          setMapCities(remote.mapCities)
+        } catch {
+          if (cancelled) return
+          const local = readLocalRoom(roomCode)
+          setSelectedDateState(local.selectedDate)
+          setSavedDiaryEntries(local.savedDiaryEntries)
+          setLoveLogs(local.loveLogs)
+          setMapCities(local.mapCities)
+          setRoomSyncError('共享空间加载失败，已回退本地数据。')
+        } finally {
+          if (!cancelled) setIsRoomSyncing(false)
+        }
+      } else {
+        const local = readLocalRoom(roomCode)
+        setSelectedDateState(local.selectedDate)
+        setSavedDiaryEntries(local.savedDiaryEntries)
+        setLoveLogs(local.loveLogs)
+        setMapCities(local.mapCities)
+      }
+
+      if (!cancelled) setIsRoomReady(true)
+    }
+
+    hydrateRoom()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated, roomCode])
+
+  useEffect(() => {
+    if (!isRoomReady) return
+    if (IS_CLOUD_MODE && supabase && isAuthenticated) return
+    writeLocalRoom(roomCode, {
+      selectedDate,
+      savedDiaryEntries,
+      loveLogs,
+      mapCities,
+      updatedAt: new Date().toISOString(),
+    })
+  }, [isAuthenticated, isRoomReady, loveLogs, mapCities, roomCode, savedDiaryEntries, selectedDate])
+
+  useEffect(() => {
+    if (!isRoomReady) return undefined
+    if (!IS_CLOUD_MODE || !supabase || !isAuthenticated) return undefined
+
+    if (skipNextCloudWriteRef.current) {
+      skipNextCloudWriteRef.current = false
+      return undefined
+    }
+
+    const timer = window.setTimeout(async () => {
+      setIsRoomSyncing(true)
+      const now = new Date().toISOString()
+      const { error } = await supabase
+        .from(ROOM_TABLE)
+        .upsert(
+          toCloudRow(
+            roomCode,
+            {
+              selectedDate,
+              savedDiaryEntries,
+              loveLogs,
+              mapCities,
+            },
+            now,
+          ),
+          { onConflict: 'room_code' },
+        )
+
+      if (error) {
+        setRoomSyncError('共享空间同步失败，请稍后重试。')
+      } else {
+        setRoomSyncError('')
+        lastRemoteUpdatedAtRef.current = now
+      }
+      setIsRoomSyncing(false)
+    }, 450)
+
+    return () => window.clearTimeout(timer)
+  }, [isAuthenticated, isRoomReady, loveLogs, mapCities, roomCode, savedDiaryEntries, selectedDate])
+
+  useEffect(() => {
+    if (!isRoomReady) return undefined
+    if (!IS_CLOUD_MODE || !supabase || !isAuthenticated) return undefined
+
+    let stopped = false
+    const poll = async () => {
+      const { data, error } = await supabase
+        .from(ROOM_TABLE)
+        .select('*')
+        .eq('room_code', roomCode)
+        .maybeSingle()
+      if (stopped || error || !data) return
+
+      const remote = normalizeRoomData(data)
+      if (remote.updatedAt && remote.updatedAt === lastRemoteUpdatedAtRef.current) return
+
+      lastRemoteUpdatedAtRef.current = remote.updatedAt || ''
+      skipNextCloudWriteRef.current = true
+      setSelectedDateState(remote.selectedDate)
+      setSavedDiaryEntries(remote.savedDiaryEntries)
+      setLoveLogs(remote.loveLogs)
+      setMapCities(remote.mapCities)
+    }
+
+    const timer = window.setInterval(poll, 3200)
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+    }
+  }, [isAuthenticated, isRoomReady, roomCode])
+
+  const setSelectedDate = useCallback((nextDateText) => {
+    setSelectedDateState(forceDiaryStartYear(nextDateText))
+  }, [])
 
   const diaryEntries = useMemo(() => {
     const base = buildFiveYears(selectedDate)
@@ -157,18 +406,6 @@ export function LoveStoryProvider({ children }) {
       return matched ? matched : entry
     })
   }, [savedDiaryEntries, selectedDate])
-
-  useEffect(() => {
-    saveJson(DIARY_KEY, savedDiaryEntries)
-  }, [savedDiaryEntries])
-
-  useEffect(() => {
-    saveJson(LOVE_KEY, loveLogs)
-  }, [loveLogs])
-
-  useEffect(() => {
-    saveJson(MAP_KEY, mapCities)
-  }, [mapCities])
 
   const updateDiaryEntry = (entryId, content) => {
     setSavedDiaryEntries((prev) => {
@@ -300,6 +537,10 @@ export function LoveStoryProvider({ children }) {
     addCity,
     deleteCity,
     deleteCityPhoto,
+    syncMode: IS_CLOUD_MODE ? 'cloud' : 'local',
+    syncGroup: user?.matchCode ? String(user.matchCode).trim() : '',
+    isRoomSyncing,
+    roomSyncError,
   }
 
   return <LoveStoryContext.Provider value={value}>{children}</LoveStoryContext.Provider>

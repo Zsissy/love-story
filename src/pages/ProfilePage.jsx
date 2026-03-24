@@ -18,10 +18,19 @@ function readAsDataUrl(file) {
 }
 
 function ProfilePage() {
-  const { users, reviewUser, setUserAvatar, refreshUsers, isSyncing, syncError, storageMode } =
-    useAuth()
+  const {
+    users,
+    reviewUser,
+    setUserAvatar,
+    resetUserPassword,
+    refreshUsers,
+    isSyncing,
+    syncError,
+    storageMode,
+  } = useAuth()
   const [statusFilter, setStatusFilter] = useState('all')
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [busyAction, setBusyAction] = useState('')
 
   const stats = useMemo(() => {
@@ -68,8 +77,25 @@ function ProfilePage() {
     const result = await reviewUser(id, action)
     if (!result?.ok) {
       setError(result?.message || '审核失败，请稍后重试。')
+      setNotice('')
     } else {
       setError('')
+      setNotice(action === 'approved' ? '已通过该用户申请。' : '已拒绝该用户申请。')
+    }
+    setBusyAction('')
+  }
+
+  const handleResetPassword = async (item) => {
+    const nextPassword = window.prompt(`请输入 ${item.username} 的新密码（至少 6 位）`, '')
+    if (nextPassword === null) return
+    setBusyAction(`reset-${item.id}`)
+    const result = await resetUserPassword(item.id, nextPassword)
+    if (!result?.ok) {
+      setError(result?.message || '重置失败，请稍后重试。')
+      setNotice('')
+    } else {
+      setError('')
+      setNotice(`已为 ${item.username} 重置密码。`)
     }
     setBusyAction('')
   }
@@ -127,6 +153,8 @@ function ProfilePage() {
         </div>
 
         {syncError ? <p className="form-error">{syncError}</p> : null}
+        <p className="empty-note">出于安全原因，系统不显示用户原密码。忘记密码请使用“重置密码”。</p>
+        {notice ? <p className="auth-success">{notice}</p> : null}
         {error ? <p className="form-error">{error}</p> : null}
 
         <div className="review-list">
@@ -172,6 +200,14 @@ function ProfilePage() {
                     disabled={item.status === 'rejected' || busyAction === `rejected-${item.id}`}
                   >
                     拒绝
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => handleResetPassword(item)}
+                    disabled={busyAction === `reset-${item.id}`}
+                  >
+                    重置密码
                   </button>
                   <label className="ghost review-avatar-upload">
                     添加头像
