@@ -99,7 +99,9 @@ function AppShell() {
               </NavLink>
             ))}
           </nav>
+        </div>
 
+        <div className="hero__floating">
           <div className="auth-badge">
             <div className="auth-badge__head">
               <div className="auth-badge__avatar" aria-hidden="true">
@@ -109,7 +111,7 @@ function AppShell() {
                   <span>{user?.username?.[0] || '?'}</span>
                 )}
               </div>
-              <span>
+              <span className="auth-badge__identity">
                 {isAdmin ? '管理员' : '用户'}：{user?.username || '-'}
                 {user?.matchCode ? ` · 匹配码：${user.matchCode}` : ''}
               </span>

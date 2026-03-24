@@ -58,13 +58,22 @@
 
 .hero__toolbar {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  justify-content: flex-start;
+  align-items: center;
   gap: 0.8rem;
 }
 
+.hero__floating {
+  margin-top: 0.55rem;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  position: relative;
+  z-index: 5;
+}
+
 .auth-badge {
-  margin-top: 1rem;
+  margin-top: 0;
   display: inline-flex;
   align-items: center;
   flex-wrap: nowrap;
@@ -72,8 +81,14 @@
   padding: 0.34rem;
   border-radius: 999px;
   border: 1px solid #d8babf;
-  background: rgba(255, 247, 248, 0.9);
+  background: rgba(255, 247, 248, 0.94);
+  box-shadow: 0 12px 26px -20px rgba(109, 80, 88, 0.8);
+  backdrop-filter: blur(2px);
   max-width: min(860px, 100%);
+}
+
+.hero .auth-badge {
+  margin-inline: auto;
 }
 
 .auth-badge__head {
@@ -113,10 +128,43 @@
   white-space: nowrap;
 }
 
+.auth-badge__identity {
+  max-width: min(56vw, 520px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .auth-badge__actions {
   display: inline-flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.35rem;
+}
+
+.auth-badge__actions .ghost {
+  white-space: nowrap;
+}
+
+@media (min-width: 769px) {
+  .layout--single .panel__head {
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    text-align: center;
+  }
+
+  .layout--single .panel__head > div,
+  .layout--single .panel__head > label {
+    text-align: center;
+  }
+
+  .layout--single .date-picker {
+    align-items: center;
+  }
+
+  .profile-panel .review-stats,
+  .profile-panel .review-filter {
+    justify-content: center;
+  }
 }
 
 .nav-pill {
@@ -281,12 +329,17 @@
 .hero--home .hero__toolbar {
   margin-top: 0.35rem;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
 }
 
 .hero--home .top-nav {
   margin-top: 0.25rem;
+}
+
+.hero--home .hero__floating {
+  margin-top: 0.38rem;
+  margin-bottom: -0.12rem;
 }
 
 .hero--home .auth-badge {
@@ -1096,6 +1149,12 @@ button:hover {
     align-items: stretch;
   }
 
+  .hero__floating {
+    margin-top: 0;
+    width: 100%;
+    justify-content: center;
+  }
+
   .top-nav {
     margin-top: 0.85rem;
   }
@@ -1103,7 +1162,9 @@ button:hover {
   .auth-badge {
     margin-top: 0;
     display: grid;
-    width: 100%;
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
     border-radius: 14px;
     padding: 0.38rem;
     gap: 0.35rem;
@@ -1113,6 +1174,11 @@ button:hover {
   .auth-badge__actions {
     display: flex;
     flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .auth-badge__identity {
+    max-width: 100%;
   }
 
   .auth-badge span {
@@ -1121,6 +1187,7 @@ button:hover {
     white-space: normal;
     word-break: keep-all;
     overflow-wrap: break-word;
+    text-align: center;
   }
 
   .profile-panel .panel__head {
@@ -1250,23 +1317,23 @@ button:hover {
 
   .showcase--home .showcase-modules {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.42rem;
+    grid-template-columns: 1fr;
+    gap: 0.58rem;
   }
 
   .showcase--home .showcase-card {
-    min-height: 138px;
-    padding: 0.55rem;
+    min-height: 172px;
+    padding: 0.72rem;
   }
 
   .showcase--home .showcase-card__icon {
-    width: 30px;
-    height: 30px;
-    font-size: 0.86rem;
+    width: 34px;
+    height: 34px;
+    font-size: 0.94rem;
   }
 
   .showcase--home .showcase-card h3 {
-    font-size: 0.83rem;
+    font-size: 0.94rem;
     line-height: 1.25;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -1275,26 +1342,26 @@ button:hover {
   }
 
   .showcase--home .showcase-card p {
-    font-size: 0.72rem;
-    line-height: 1.3;
+    font-size: 0.8rem;
+    line-height: 1.35;
     display: -webkit-box;
-    -webkit-line-clamp: 3;
+    -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
 
   .showcase--home .showcase-card__tag {
-    margin: 0.45rem 0 0.25rem;
-    font-size: 0.64rem;
+    margin: 0.52rem 0 0.3rem;
+    font-size: 0.72rem;
     letter-spacing: 0.03em;
   }
 
   .showcase--home .showcase-card__actions {
-    margin-top: 0.4rem;
+    margin-top: 0.5rem;
   }
 
   .showcase--home .showcase-card__actions .ghost {
-    padding: 0.2rem 0.34rem;
-    font-size: 0.64rem;
+    padding: 0.24rem 0.4rem;
+    font-size: 0.7rem;
   }
 }
