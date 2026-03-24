@@ -14,7 +14,7 @@ function readAsDataUrl(file) {
 function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { login, register, isAuthenticated } = useAuth()
+  const { login, register, isAuthenticated, storageMode, syncError } = useAuth()
 
   const [mode, setMode] = useState('login')
   const [username, setUsername] = useState('')
@@ -24,6 +24,7 @@ function LoginPage() {
   const [registerAvatar, setRegisterAvatar] = useState('')
   const [error, setError] = useState('')
   const [registerMessage, setRegisterMessage] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const from = location.state?.from?.pathname || '/'
 
@@ -31,9 +32,11 @@ function LoginPage() {
     return <Navigate to={from} replace />
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
-    const result = login(username, password)
+    setIsSubmitting(true)
+    const result = await login(username, password)
+    setIsSubmitting(false)
     if (!result.ok) {
       setError(result.message || '登录失败')
       return
@@ -54,13 +57,15 @@ function LoginPage() {
     }
   }
 
-  const handleRegister = (event) => {
+  const handleRegister = async (event) => {
     event.preventDefault()
-    const result = register({
+    setIsSubmitting(true)
+    const result = await register({
       username: registerUsername,
       password: registerPassword,
       avatar: registerAvatar,
     })
+    setIsSubmitting(false)
 
     if (!result.ok) {
       setError(result.message || '注册失败')
@@ -116,6 +121,7 @@ function LoginPage() {
               onChange={(event) => setUsername(event.target.value)}
               placeholder="用户名"
               autoComplete="username"
+              disabled={isSubmitting}
             />
             <input
               type="password"
@@ -123,8 +129,9 @@ function LoginPage() {
               onChange={(event) => setPassword(event.target.value)}
               placeholder="密码"
               autoComplete="current-password"
+              disabled={isSubmitting}
             />
-            <button className="primary" type="submit">
+            <button className="primary" type="submit" disabled={isSubmitting}>
               登录
             </button>
           </form>
@@ -135,6 +142,7 @@ function LoginPage() {
               onChange={(event) => setRegisterUsername(event.target.value)}
               placeholder="用户名"
               autoComplete="username"
+              disabled={isSubmitting}
             />
             <input
               type="password"
@@ -142,6 +150,7 @@ function LoginPage() {
               onChange={(event) => setRegisterPassword(event.target.value)}
               placeholder="密码"
               autoComplete="new-password"
+              disabled={isSubmitting}
             />
             <label className="upload-dropzone">
               <span>上传头像（可选）</span>
@@ -150,6 +159,7 @@ function LoginPage() {
                 accept="image/*"
                 className="sr-only"
                 onChange={handleAvatarChange}
+                disabled={isSubmitting}
               />
               <span>点击这里选择头像</span>
             </label>
@@ -158,12 +168,16 @@ function LoginPage() {
                 <img src={registerAvatar} alt="注册头像预览" />
               </div>
             ) : null}
-            <button className="primary" type="submit">
+            <button className="primary" type="submit" disabled={isSubmitting}>
               提交注册
             </button>
           </form>
         )}
 
+        {storageMode === 'local' ? (
+          <p className="form-error">当前为本地模式，跨设备注册审核请先配置 Supabase 云端。</p>
+        ) : null}
+        {syncError ? <p className="form-error">{syncError}</p> : null}
         {registerMessage ? <p className="auth-success">{registerMessage}</p> : null}
         {error ? <p className="form-error">{error}</p> : null}
       </section>

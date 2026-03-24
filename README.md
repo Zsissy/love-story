@@ -1,16 +1,24 @@
-# React + Vite
+# Love Story
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+情侣纪念网页（整合页 / 五年日记 / 恋爱记录 / 旅行地图 / 登录注册审核）。
 
-Currently, two official plugins are available:
+## 本地启动
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+## GitHub Pages
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+已配置自动部署工作流，推送到 `main` 会自动发布。
 
-## Expanding the ESLint configuration
+## 审核功能（跨设备可见）
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+注册审核已支持 Supabase 云端同步。  
+完整配置见：
+
+- [SUPABASE_SETUP.md](./SUPABASE_SETUP.md)
+
+如果未配置 Supabase，系统会退回本地模式（仅当前浏览器可见）。
+

@@ -18,9 +18,11 @@ function readAsDataUrl(file) {
 }
 
 function ProfilePage() {
-  const { users, reviewUser, setUserAvatar } = useAuth()
+  const { users, reviewUser, setUserAvatar, refreshUsers, isSyncing, syncError, storageMode } =
+    useAuth()
   const [statusFilter, setStatusFilter] = useState('all')
   const [error, setError] = useState('')
+  const [busyAction, setBusyAction] = useState('')
 
   const stats = useMemo(() => {
     const total = users.length
@@ -44,15 +46,32 @@ function ProfilePage() {
     const file = event.target.files?.[0]
     if (!file) return
     try {
+      setBusyAction(`avatar-${id}`)
       const avatar = await readAsDataUrl(file)
       if (!avatar) return
-      setUserAvatar(id, avatar)
+      const result = await setUserAvatar(id, avatar)
+      if (!result?.ok) {
+        setError(result?.message || '头像上传失败，请重试。')
+        return
+      }
       setError('')
     } catch {
       setError('头像上传失败，请重试。')
     } finally {
+      setBusyAction('')
       event.target.value = ''
     }
+  }
+
+  const handleReview = async (id, action) => {
+    setBusyAction(`${action}-${id}`)
+    const result = await reviewUser(id, action)
+    if (!result?.ok) {
+      setError(result?.message || '审核失败，请稍后重试。')
+    } else {
+      setError('')
+    }
+    setBusyAction('')
   }
 
   return (
@@ -64,10 +83,15 @@ function ProfilePage() {
             <h2>注册用户审核</h2>
           </div>
           <div className="review-stats" aria-label="审核统计">
-            <span>总用户 {stats.total}</span>
+            <span>
+              总用户 {stats.total} · {storageMode === 'cloud' ? '云端共享' : '本地模式'}
+            </span>
             <span>待审核 {stats.pending}</span>
             <span>已通过 {stats.approved}</span>
             <span>已拒绝 {stats.rejected}</span>
+            <button className="ghost" type="button" onClick={refreshUsers} disabled={isSyncing}>
+              {isSyncing ? '同步中...' : '手动刷新'}
+            </button>
           </div>
         </header>
 
@@ -102,6 +126,7 @@ function ProfilePage() {
           </button>
         </div>
 
+        {syncError ? <p className="form-error">{syncError}</p> : null}
         {error ? <p className="form-error">{error}</p> : null}
 
         <div className="review-list">
@@ -135,16 +160,16 @@ function ProfilePage() {
                   <button
                     type="button"
                     className="primary"
-                    onClick={() => reviewUser(item.id, 'approved')}
-                    disabled={item.status === 'approved'}
+                    onClick={() => handleReview(item.id, 'approved')}
+                    disabled={item.status === 'approved' || busyAction === `approved-${item.id}`}
                   >
                     接受
                   </button>
                   <button
                     type="button"
                     className="ghost danger"
-                    onClick={() => reviewUser(item.id, 'rejected')}
-                    disabled={item.status === 'rejected'}
+                    onClick={() => handleReview(item.id, 'rejected')}
+                    disabled={item.status === 'rejected' || busyAction === `rejected-${item.id}`}
                   >
                     拒绝
                   </button>
@@ -155,6 +180,7 @@ function ProfilePage() {
                       accept="image/*"
                       className="sr-only"
                       onChange={(event) => handleAvatarChange(event, item.id)}
+                      disabled={busyAction === `avatar-${item.id}`}
                     />
                   </label>
                 </div>
