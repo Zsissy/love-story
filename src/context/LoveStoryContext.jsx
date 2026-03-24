@@ -145,6 +145,17 @@ function normalizeMapCities(cities) {
   }))
 }
 
+function normalizeModuleCovers(covers) {
+  if (!covers || typeof covers !== 'object') {
+    return { diary: '', love: '', map: '' }
+  }
+  return {
+    diary: String(covers.diary || ''),
+    love: String(covers.love || ''),
+    map: String(covers.map || ''),
+  }
+}
+
 function resolveCityCoordinate(cityName) {
   const clean = cityName.trim()
   if (!clean) return null
@@ -162,6 +173,8 @@ function getDefaultRoomData() {
     savedDiaryEntries: [],
     loveLogs: normalizeLoveLogs(DEFAULT_LOVE_LOGS),
     mapCities: normalizeMapCities(DEFAULT_CITIES),
+    homeCover: '',
+    moduleCovers: { diary: '', love: '', map: '' },
     updatedAt: '',
   }
 }
@@ -183,6 +196,8 @@ function normalizeRoomData(payload) {
         ? payload.mapCities || payload.map_cities
         : base.mapCities,
     ),
+    homeCover: String(payload?.homeCover || payload?.home_cover || ''),
+    moduleCovers: normalizeModuleCovers(payload?.moduleCovers || payload?.module_covers),
     updatedAt: payload?.updatedAt || payload?.updated_at || '',
   }
 }
@@ -194,6 +209,8 @@ function toCloudRow(roomCode, roomData, updatedAt = new Date().toISOString()) {
     diary_entries: roomData.savedDiaryEntries,
     love_logs: roomData.loveLogs,
     map_cities: roomData.mapCities,
+    home_cover: roomData.homeCover || '',
+    module_covers: normalizeModuleCovers(roomData.moduleCovers),
     updated_at: updatedAt,
   }
 }
@@ -258,6 +275,8 @@ export function LoveStoryProvider({ children }) {
   const [savedDiaryEntries, setSavedDiaryEntries] = useState([])
   const [loveLogs, setLoveLogs] = useState(() => normalizeLoveLogs(DEFAULT_LOVE_LOGS))
   const [mapCities, setMapCities] = useState(() => normalizeMapCities(DEFAULT_CITIES))
+  const [homeCover, setHomeCoverState] = useState('')
+  const [moduleCovers, setModuleCoversState] = useState({ diary: '', love: '', map: '' })
   const [isRoomReady, setIsRoomReady] = useState(false)
   const [isRoomSyncing, setIsRoomSyncing] = useState(false)
   const [roomSyncError, setRoomSyncError] = useState('')
@@ -283,6 +302,8 @@ export function LoveStoryProvider({ children }) {
           setSavedDiaryEntries(remote.savedDiaryEntries)
           setLoveLogs(remote.loveLogs)
           setMapCities(remote.mapCities)
+          setHomeCoverState(remote.homeCover)
+          setModuleCoversState(remote.moduleCovers)
         } catch {
           if (cancelled) return
           const local = readLocalRoom(roomCode)
@@ -290,6 +311,8 @@ export function LoveStoryProvider({ children }) {
           setSavedDiaryEntries(local.savedDiaryEntries)
           setLoveLogs(local.loveLogs)
           setMapCities(local.mapCities)
+          setHomeCoverState(local.homeCover)
+          setModuleCoversState(local.moduleCovers)
           setRoomSyncError('共享空间加载失败，已回退本地数据。')
         } finally {
           if (!cancelled) setIsRoomSyncing(false)
@@ -300,6 +323,8 @@ export function LoveStoryProvider({ children }) {
         setSavedDiaryEntries(local.savedDiaryEntries)
         setLoveLogs(local.loveLogs)
         setMapCities(local.mapCities)
+        setHomeCoverState(local.homeCover)
+        setModuleCoversState(local.moduleCovers)
       }
 
       if (!cancelled) setIsRoomReady(true)
@@ -320,9 +345,21 @@ export function LoveStoryProvider({ children }) {
       savedDiaryEntries,
       loveLogs,
       mapCities,
+      homeCover,
+      moduleCovers,
       updatedAt: new Date().toISOString(),
     })
-  }, [isAuthenticated, isRoomReady, loveLogs, mapCities, roomCode, savedDiaryEntries, selectedDate])
+  }, [
+    homeCover,
+    isAuthenticated,
+    isRoomReady,
+    loveLogs,
+    mapCities,
+    moduleCovers,
+    roomCode,
+    savedDiaryEntries,
+    selectedDate,
+  ])
 
   useEffect(() => {
     if (!isRoomReady) return undefined
@@ -346,6 +383,8 @@ export function LoveStoryProvider({ children }) {
               savedDiaryEntries,
               loveLogs,
               mapCities,
+              homeCover,
+              moduleCovers,
             },
             now,
           ),
@@ -362,7 +401,17 @@ export function LoveStoryProvider({ children }) {
     }, 450)
 
     return () => window.clearTimeout(timer)
-  }, [isAuthenticated, isRoomReady, loveLogs, mapCities, roomCode, savedDiaryEntries, selectedDate])
+  }, [
+    homeCover,
+    isAuthenticated,
+    isRoomReady,
+    loveLogs,
+    mapCities,
+    moduleCovers,
+    roomCode,
+    savedDiaryEntries,
+    selectedDate,
+  ])
 
   useEffect(() => {
     if (!isRoomReady) return undefined
@@ -386,6 +435,8 @@ export function LoveStoryProvider({ children }) {
       setSavedDiaryEntries(remote.savedDiaryEntries)
       setLoveLogs(remote.loveLogs)
       setMapCities(remote.mapCities)
+      setHomeCoverState(remote.homeCover)
+      setModuleCoversState(remote.moduleCovers)
     }
 
     const timer = window.setInterval(poll, 3200)
@@ -397,6 +448,18 @@ export function LoveStoryProvider({ children }) {
 
   const setSelectedDate = useCallback((nextDateText) => {
     setSelectedDateState(forceDiaryStartYear(nextDateText))
+  }, [])
+
+  const setHomeCover = useCallback((nextCover) => {
+    setHomeCoverState(String(nextCover || ''))
+  }, [])
+
+  const setModuleCover = useCallback((moduleKey, nextCover) => {
+    if (!['diary', 'love', 'map'].includes(moduleKey)) return
+    setModuleCoversState((prev) => ({
+      ...prev,
+      [moduleKey]: String(nextCover || ''),
+    }))
   }, [])
 
   const diaryEntries = useMemo(() => {
@@ -537,6 +600,10 @@ export function LoveStoryProvider({ children }) {
     addCity,
     deleteCity,
     deleteCityPhoto,
+    homeCover,
+    setHomeCover,
+    moduleCovers,
+    setModuleCover,
     syncMode: IS_CLOUD_MODE ? 'cloud' : 'local',
     syncGroup: user?.matchCode ? String(user.matchCode).trim() : '',
     isRoomSyncing,

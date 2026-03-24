@@ -23,8 +23,16 @@ create table if not exists public.app_sync_rooms (
   diary_entries jsonb not null default '[]'::jsonb,
   love_logs jsonb not null default '[]'::jsonb,
   map_cities jsonb not null default '[]'::jsonb,
+  home_cover text not null default '',
+  module_covers jsonb not null default '{"diary":"","love":"","map":""}'::jsonb,
   updated_at timestamptz not null default now()
 );
+
+alter table public.app_sync_rooms
+  add column if not exists home_cover text not null default '';
+
+alter table public.app_sync_rooms
+  add column if not exists module_covers jsonb not null default '{"diary":"","love":"","map":""}'::jsonb;
 ```
 
 ## 2. 开放表访问（用于纯前端部署）

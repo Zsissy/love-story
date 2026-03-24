@@ -1,9 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef } from 'react'
 import heroImage from '../assets/hero.png'
 import { useLoveStory } from '../context/LoveStoryContext'
-
-const HOME_COVER_KEY = 'love-story-home-cover-v1'
-const HOME_MODULE_COVERS_KEY = 'love-story-home-module-covers-v1'
 
 function byDiaryUpdatedDesc(a, b) {
   const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -16,30 +13,20 @@ function byVisitedDesc(a, b) {
 }
 
 function HomePage() {
-  const { savedDiaryEntries, loveLogs, mapCities } = useLoveStory()
+  const {
+    savedDiaryEntries,
+    loveLogs,
+    mapCities,
+    homeCover,
+    setHomeCover,
+    moduleCovers,
+    setModuleCover,
+  } = useLoveStory()
   const uploaderRef = useRef(null)
   const moduleUploaderRefs = useRef({
     diary: null,
     love: null,
     map: null,
-  })
-  const [coverImage, setCoverImage] = useState(() => {
-    const cached = localStorage.getItem(HOME_COVER_KEY)
-    return cached || heroImage
-  })
-  const [moduleCovers, setModuleCovers] = useState(() => {
-    try {
-      const cached = localStorage.getItem(HOME_MODULE_COVERS_KEY)
-      if (!cached) return { diary: '', love: '', map: '' }
-      const parsed = JSON.parse(cached)
-      return {
-        diary: parsed?.diary || '',
-        love: parsed?.love || '',
-        map: parsed?.map || '',
-      }
-    } catch {
-      return { diary: '', love: '', map: '' }
-    }
   })
 
   const latestDiary = useMemo(() => {
@@ -60,10 +47,10 @@ function HomePage() {
     reader.onload = () => {
       const dataUrl = String(reader.result || '')
       if (!dataUrl) return
-      setCoverImage(dataUrl)
-      localStorage.setItem(HOME_COVER_KEY, dataUrl)
+      setHomeCover(dataUrl)
     }
     reader.readAsDataURL(file)
+    event.target.value = ''
   }
 
   const importModuleCover = (moduleKey, event) => {
@@ -75,11 +62,7 @@ function HomePage() {
       const dataUrl = String(reader.result || '')
       if (!dataUrl) return
 
-      setModuleCovers((prev) => {
-        const next = { ...prev, [moduleKey]: dataUrl }
-        localStorage.setItem(HOME_MODULE_COVERS_KEY, JSON.stringify(next))
-        return next
-      })
+      setModuleCover(moduleKey, dataUrl)
     }
     reader.readAsDataURL(file)
     event.target.value = ''
@@ -97,7 +80,7 @@ function HomePage() {
         />
         <div
           className="showcase-cover__image"
-          style={{ backgroundImage: `url("${coverImage}")` }}
+          style={{ backgroundImage: `url("${homeCover || heroImage}")` }}
           aria-label="整合页背景图"
         >
           <button
