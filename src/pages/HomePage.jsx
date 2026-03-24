@@ -80,9 +80,12 @@ function HomePage() {
         />
         <div
           className="showcase-cover__image"
-          style={{ backgroundImage: `url("${homeCover || heroImage}")` }}
-          aria-label="整合页背景图"
         >
+          <img
+            className="showcase-cover__img"
+            src={homeCover || heroImage}
+            alt="整合页背景图"
+          />
           <button
             className="ghost"
             type="button"
@@ -97,11 +100,12 @@ function HomePage() {
         <article className={`showcase-card${moduleCovers.diary ? ' has-bg' : ''}`}>
           {moduleCovers.diary ? (
             <>
-              <div
+              <img
                 className="showcase-card__bg"
-                style={{ backgroundImage: `url("${moduleCovers.diary}")` }}
+                src={moduleCovers.diary}
+                alt=""
                 aria-hidden="true"
-              ></div>
+              />
               <div className="showcase-card__veil" aria-hidden="true"></div>
             </>
           ) : null}
@@ -147,11 +151,12 @@ function HomePage() {
         <article className={`showcase-card${moduleCovers.love ? ' has-bg' : ''}`}>
           {moduleCovers.love ? (
             <>
-              <div
+              <img
                 className="showcase-card__bg"
-                style={{ backgroundImage: `url("${moduleCovers.love}")` }}
+                src={moduleCovers.love}
+                alt=""
                 aria-hidden="true"
-              ></div>
+              />
               <div className="showcase-card__veil" aria-hidden="true"></div>
             </>
           ) : null}
@@ -195,11 +200,12 @@ function HomePage() {
         <article className={`showcase-card${moduleCovers.map ? ' has-bg' : ''}`}>
           {moduleCovers.map ? (
             <>
-              <div
+              <img
                 className="showcase-card__bg"
-                style={{ backgroundImage: `url("${moduleCovers.map}")` }}
+                src={moduleCovers.map}
+                alt=""
                 aria-hidden="true"
-              ></div>
+              />
               <div className="showcase-card__veil" aria-hidden="true"></div>
             </>
           ) : null}

@@ -101,40 +101,49 @@ function AppShell() {
           </nav>
 
           <div className="auth-badge">
-            <div className="auth-badge__avatar" aria-hidden="true">
-              {user?.avatar ? <img src={user.avatar} alt="" /> : <span>{user?.username?.[0] || '?'}</span>}
+            <div className="auth-badge__head">
+              <div className="auth-badge__avatar" aria-hidden="true">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt="" />
+                ) : (
+                  <span>{user?.username?.[0] || '?'}</span>
+                )}
+              </div>
+              <span>
+                {isAdmin ? '管理员' : '用户'}：{user?.username || '-'}
+                {user?.matchCode ? ` · 匹配码：${user.matchCode}` : ''}
+              </span>
             </div>
-            <span>
-              {isAdmin ? '管理员' : '用户'}：{user?.username || '-'}
-              {user?.matchCode ? ` · 匹配码：${user.matchCode}` : ''}
-            </span>
-            {!isAdmin ? (
-              <>
-                <button className="ghost" type="button" onClick={handleRenameUsername}>
-                  修改用户名
-                </button>
-                <button className="ghost" type="button" onClick={handleChangePassword}>
-                  修改密码
-                </button>
-                <button
-                  className="ghost"
-                  type="button"
-                  onClick={() => avatarUploadRef.current?.click()}
-                >
-                  修改头像
-                </button>
-                <input
-                  ref={avatarUploadRef}
-                  type="file"
-                  accept="image/*"
-                  className="sr-only"
-                  onChange={handleAvatarInput}
-                />
-              </>
-            ) : null}
-            <button className="ghost" type="button" onClick={logout}>
-              退出登录
-            </button>
+
+            <div className="auth-badge__actions">
+              {!isAdmin ? (
+                <>
+                  <button className="ghost" type="button" onClick={handleRenameUsername}>
+                    修改用户名
+                  </button>
+                  <button className="ghost" type="button" onClick={handleChangePassword}>
+                    修改密码
+                  </button>
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => avatarUploadRef.current?.click()}
+                  >
+                    修改头像
+                  </button>
+                  <input
+                    ref={avatarUploadRef}
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={handleAvatarInput}
+                  />
+                </>
+              ) : null}
+              <button className="ghost" type="button" onClick={logout}>
+                退出登录
+              </button>
+            </div>
           </div>
         </div>
       </header>
