@@ -147,13 +147,41 @@ function normalizeMapCities(cities) {
 
 function normalizeModuleCovers(covers) {
   if (!covers || typeof covers !== 'object') {
-    return { diary: '', love: '', map: '' }
+    return { diary: '', love: '', map: '', relationshipStart: '' }
   }
   return {
     diary: String(covers.diary || ''),
     love: String(covers.love || ''),
     map: String(covers.map || ''),
+    relationshipStart: String(covers.relationshipStart || ''),
   }
+}
+
+function normalizeFutureTrips(items) {
+  if (!Array.isArray(items)) return []
+  return items
+    .map((item, index) => {
+      if (typeof item === 'string') {
+        const name = item.trim()
+        if (!name) return null
+        return {
+          id: `future-trip-${index}-${name}`,
+          name,
+          note: '',
+        }
+      }
+
+      const name = String(item?.name || '').trim()
+      const note = String(item?.note || '').trim()
+      if (!name) return null
+
+      return {
+        id: item?.id || `future-trip-${index}-${name}`,
+        name,
+        note,
+      }
+    })
+    .filter(Boolean)
 }
 
 function resolveCityCoordinate(cityName) {
@@ -167,20 +195,52 @@ function resolveCityCoordinate(cityName) {
   return null
 }
 
+async function searchCityCoordinate(cityName) {
+  const clean = String(cityName || '').trim()
+  if (!clean) return null
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&accept-language=zh-CN&q=${encodeURIComponent(clean)}`
+    const response = await fetch(url)
+    if (!response.ok) return null
+
+    const [first] = await response.json()
+    if (!first) return null
+
+    const lat = Number(first.lat)
+    const lng = Number(first.lon)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+
+    const address = first.address || {}
+    return {
+      lng,
+      lat,
+      province: address.state || address.province || '',
+      city: address.city || address.town || address.county || clean,
+      district: address.city_district || address.suburb || address.county || '',
+    }
+  } catch {
+    return null
+  }
+}
+
 function getDefaultRoomData() {
   return {
     selectedDate: forceDiaryStartYear(formatDate(new Date())),
     savedDiaryEntries: [],
     loveLogs: normalizeLoveLogs(DEFAULT_LOVE_LOGS),
     mapCities: normalizeMapCities(DEFAULT_CITIES),
+    futureTrips: [],
     homeCover: '',
     moduleCovers: { diary: '', love: '', map: '' },
+    relationshipStart: '',
     updatedAt: '',
   }
 }
 
 function normalizeRoomData(payload) {
   const base = getDefaultRoomData()
+  const normalizedCovers = normalizeModuleCovers(payload?.moduleCovers || payload?.module_covers)
   return {
     selectedDate: forceDiaryStartYear(payload?.selectedDate || payload?.selected_date || base.selectedDate),
     savedDiaryEntries: Array.isArray(payload?.savedDiaryEntries || payload?.diary_entries)
@@ -196,21 +256,33 @@ function normalizeRoomData(payload) {
         ? payload.mapCities || payload.map_cities
         : base.mapCities,
     ),
+    futureTrips: normalizeFutureTrips(payload?.futureTrips || payload?.future_trips || base.futureTrips),
     homeCover: String(payload?.homeCover || payload?.home_cover || ''),
-    moduleCovers: normalizeModuleCovers(payload?.moduleCovers || payload?.module_covers),
+    moduleCovers: normalizedCovers,
+    relationshipStart: String(
+      payload?.relationshipStart ||
+        payload?.relationship_start ||
+        normalizedCovers.relationshipStart ||
+        '',
+    ),
     updatedAt: payload?.updatedAt || payload?.updated_at || '',
   }
 }
 
 function toCloudRow(roomCode, roomData, updatedAt = new Date().toISOString()) {
+  const normalizedCovers = normalizeModuleCovers({
+    ...roomData.moduleCovers,
+    relationshipStart: roomData.relationshipStart || '',
+  })
   return {
     room_code: roomCode,
     selected_date: roomData.selectedDate,
     diary_entries: roomData.savedDiaryEntries,
     love_logs: roomData.loveLogs,
     map_cities: roomData.mapCities,
+    future_trips: normalizeFutureTrips(roomData.futureTrips),
     home_cover: roomData.homeCover || '',
-    module_covers: normalizeModuleCovers(roomData.moduleCovers),
+    module_covers: normalizedCovers,
     updated_at: updatedAt,
   }
 }
@@ -275,8 +347,10 @@ export function LoveStoryProvider({ children }) {
   const [savedDiaryEntries, setSavedDiaryEntries] = useState([])
   const [loveLogs, setLoveLogs] = useState(() => normalizeLoveLogs(DEFAULT_LOVE_LOGS))
   const [mapCities, setMapCities] = useState(() => normalizeMapCities(DEFAULT_CITIES))
+  const [futureTrips, setFutureTrips] = useState([])
   const [homeCover, setHomeCoverState] = useState('')
   const [moduleCovers, setModuleCoversState] = useState({ diary: '', love: '', map: '' })
+  const [relationshipStart, setRelationshipStartState] = useState('')
   const [isRoomReady, setIsRoomReady] = useState(false)
   const [isRoomSyncing, setIsRoomSyncing] = useState(false)
   const [roomSyncError, setRoomSyncError] = useState('')
@@ -302,8 +376,10 @@ export function LoveStoryProvider({ children }) {
           setSavedDiaryEntries(remote.savedDiaryEntries)
           setLoveLogs(remote.loveLogs)
           setMapCities(remote.mapCities)
+          setFutureTrips(remote.futureTrips)
           setHomeCoverState(remote.homeCover)
           setModuleCoversState(remote.moduleCovers)
+          setRelationshipStartState(remote.relationshipStart)
         } catch {
           if (cancelled) return
           const local = readLocalRoom(roomCode)
@@ -311,8 +387,10 @@ export function LoveStoryProvider({ children }) {
           setSavedDiaryEntries(local.savedDiaryEntries)
           setLoveLogs(local.loveLogs)
           setMapCities(local.mapCities)
+          setFutureTrips(local.futureTrips)
           setHomeCoverState(local.homeCover)
           setModuleCoversState(local.moduleCovers)
+          setRelationshipStartState(local.relationshipStart)
           setRoomSyncError('共享空间加载失败，已回退本地数据。')
         } finally {
           if (!cancelled) setIsRoomSyncing(false)
@@ -323,8 +401,10 @@ export function LoveStoryProvider({ children }) {
         setSavedDiaryEntries(local.savedDiaryEntries)
         setLoveLogs(local.loveLogs)
         setMapCities(local.mapCities)
+        setFutureTrips(local.futureTrips)
         setHomeCoverState(local.homeCover)
         setModuleCoversState(local.moduleCovers)
+        setRelationshipStartState(local.relationshipStart)
       }
 
       if (!cancelled) setIsRoomReady(true)
@@ -345,8 +425,10 @@ export function LoveStoryProvider({ children }) {
       savedDiaryEntries,
       loveLogs,
       mapCities,
+      futureTrips,
       homeCover,
       moduleCovers,
+      relationshipStart,
       updatedAt: new Date().toISOString(),
     })
   }, [
@@ -355,7 +437,9 @@ export function LoveStoryProvider({ children }) {
     isRoomReady,
     loveLogs,
     mapCities,
+    futureTrips,
     moduleCovers,
+    relationshipStart,
     roomCode,
     savedDiaryEntries,
     selectedDate,
@@ -383,8 +467,10 @@ export function LoveStoryProvider({ children }) {
               savedDiaryEntries,
               loveLogs,
               mapCities,
+              futureTrips,
               homeCover,
               moduleCovers,
+              relationshipStart,
             },
             now,
           ),
@@ -407,7 +493,9 @@ export function LoveStoryProvider({ children }) {
     isRoomReady,
     loveLogs,
     mapCities,
+    futureTrips,
     moduleCovers,
+    relationshipStart,
     roomCode,
     savedDiaryEntries,
     selectedDate,
@@ -435,8 +523,10 @@ export function LoveStoryProvider({ children }) {
       setSavedDiaryEntries(remote.savedDiaryEntries)
       setLoveLogs(remote.loveLogs)
       setMapCities(remote.mapCities)
+      setFutureTrips(remote.futureTrips)
       setHomeCoverState(remote.homeCover)
       setModuleCoversState(remote.moduleCovers)
+      setRelationshipStartState(remote.relationshipStart)
     }
 
     const timer = window.setInterval(poll, 3200)
@@ -460,6 +550,10 @@ export function LoveStoryProvider({ children }) {
       ...prev,
       [moduleKey]: String(nextCover || ''),
     }))
+  }, [])
+
+  const setRelationshipStart = useCallback((nextValue) => {
+    setRelationshipStartState(String(nextValue || ''))
   }, [])
 
   const diaryEntries = useMemo(() => {
@@ -515,7 +609,7 @@ export function LoveStoryProvider({ children }) {
     setLoveLogs((prev) => prev.filter((log) => log.id !== id))
   }
 
-  const addCity = (payload) => {
+  const addCity = async (payload) => {
     const photos = Array.isArray(payload.photos)
       ? payload.photos.map(normalizeMapPhoto).filter((photo) => photo.url)
       : String(payload.photosText || '')
@@ -539,12 +633,15 @@ export function LoveStoryProvider({ children }) {
       (photo) => Number.isFinite(photo.lat) && Number.isFinite(photo.lng),
     )
     const matchedCityCoord = resolveCityCoordinate(city)
+    const searchedCityCoord =
+      matchedPhotoCoord || matchedCityCoord ? null : await searchCityCoordinate(city)
+    const finalCityCoord = matchedCityCoord || searchedCityCoord
 
-    if (!matchedPhotoCoord && !matchedCityCoord) {
+    if (!matchedPhotoCoord && !finalCityCoord) {
       return { ok: false, message: '暂未收录该城市坐标，请换一个城市名试试。' }
     }
-    const lng = matchedPhotoCoord?.lng ?? matchedCityCoord?.lng
-    const lat = matchedPhotoCoord?.lat ?? matchedCityCoord?.lat
+    const lng = matchedPhotoCoord?.lng ?? finalCityCoord?.lng
+    const lat = matchedPhotoCoord?.lat ?? finalCityCoord?.lat
 
     const newCity = {
       id: `city-${Date.now()}`,
@@ -552,8 +649,8 @@ export function LoveStoryProvider({ children }) {
       lat,
       lng,
       photos,
-      province: autoAdmin?.province || matchedCityCoord?.province || '',
-      district: autoAdmin?.district || '',
+      province: autoAdmin?.province || finalCityCoord?.province || '',
+      district: autoAdmin?.district || finalCityCoord?.district || '',
       visitedAt: payload.visitedAt || formatDate(new Date()),
     }
 
@@ -585,6 +682,25 @@ export function LoveStoryProvider({ children }) {
     )
   }
 
+  const addFutureTrip = (payload) => {
+    const name = String(payload?.name || '').trim()
+    const note = String(payload?.note || '').trim()
+    if (!name) return false
+
+    const entry = {
+      id: `future-trip-${Date.now()}`,
+      name,
+      note,
+    }
+
+    setFutureTrips((prev) => [entry, ...prev])
+    return true
+  }
+
+  const deleteFutureTrip = (id) => {
+    setFutureTrips((prev) => prev.filter((item) => item.id !== id))
+  }
+
   const value = {
     authors: AUTHORS,
     selectedDate,
@@ -600,10 +716,15 @@ export function LoveStoryProvider({ children }) {
     addCity,
     deleteCity,
     deleteCityPhoto,
+    futureTrips,
+    addFutureTrip,
+    deleteFutureTrip,
     homeCover,
     setHomeCover,
     moduleCovers,
     setModuleCover,
+    relationshipStart,
+    setRelationshipStart,
     syncMode: IS_CLOUD_MODE ? 'cloud' : 'local',
     syncGroup: user?.matchCode ? String(user.matchCode).trim() : '',
     isRoomSyncing,

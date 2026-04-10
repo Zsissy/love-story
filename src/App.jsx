@@ -76,79 +76,81 @@ function AppShell() {
   }
 
   return (
-    <div className={`page${isHomePage ? ' page--home' : ''}`}>
-      <header className={`hero${isHomePage ? ' hero--home' : ''}`}>
-        <p className="eyebrow">Love Story</p>
-        <h1 className="hero__title">z&z love story</h1>
-        <p>
-          五年日记记录同一天的变化，恋爱记录收藏日常，旅行地图点亮共同去过的城市。
-        </p>
+    <div className={`page${isHomePage ? ' page--home page--home-app' : ''}`}>
+      {!isHomePage ? (
+        <header className="hero">
+          <p className="eyebrow">Love Story</p>
+          <h1 className="hero__title">z&z love story</h1>
+          <p>
+            五年日记记录同一天的变化，恋爱记录收藏日常，旅行地图点亮共同去过的城市。
+          </p>
 
-        <div className="hero__toolbar">
-          <nav className="top-nav" aria-label="主导航">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  `nav-pill${isActive ? ' nav-pill--active' : ''}`
-                }
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-        </div>
+          <div className="hero__toolbar">
+            <nav className="top-nav" aria-label="主导航">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    `nav-pill${isActive ? ' nav-pill--active' : ''}`
+                  }
+                >
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
+          </div>
 
-        <div className="hero__floating">
-          <div className="auth-badge">
-            <div className="auth-badge__head">
-              <div className="auth-badge__avatar" aria-hidden="true">
-                {user?.avatar ? (
-                  <img src={user.avatar} alt="" />
-                ) : (
-                  <span>{user?.username?.[0] || '?'}</span>
-                )}
+          <div className="hero__floating">
+            <div className="auth-badge">
+              <div className="auth-badge__head">
+                <div className="auth-badge__avatar" aria-hidden="true">
+                  {user?.avatar ? (
+                    <img src={user.avatar} alt="" />
+                  ) : (
+                    <span>{user?.username?.[0] || '?'}</span>
+                  )}
+                </div>
+                <span className="auth-badge__identity">
+                  {isAdmin ? '管理员' : '用户'}：{user?.username || '-'}
+                  {user?.matchCode ? ` · 匹配码：${user.matchCode}` : ''}
+                </span>
               </div>
-              <span className="auth-badge__identity">
-                {isAdmin ? '管理员' : '用户'}：{user?.username || '-'}
-                {user?.matchCode ? ` · 匹配码：${user.matchCode}` : ''}
-              </span>
-            </div>
 
-            <div className="auth-badge__actions">
-              {!isAdmin ? (
-                <>
-                  <button className="ghost" type="button" onClick={handleRenameUsername}>
-                    修改用户名
-                  </button>
-                  <button className="ghost" type="button" onClick={handleChangePassword}>
-                    修改密码
-                  </button>
-                  <button
-                    className="ghost"
-                    type="button"
-                    onClick={() => avatarUploadRef.current?.click()}
-                  >
-                    修改头像
-                  </button>
-                  <input
-                    ref={avatarUploadRef}
-                    type="file"
-                    accept="image/*"
-                    className="sr-only"
-                    onChange={handleAvatarInput}
-                  />
-                </>
-              ) : null}
-              <button className="ghost" type="button" onClick={logout}>
-                退出登录
-              </button>
+              <div className="auth-badge__actions">
+                {!isAdmin ? (
+                  <>
+                    <button className="ghost" type="button" onClick={handleRenameUsername}>
+                      修改用户名
+                    </button>
+                    <button className="ghost" type="button" onClick={handleChangePassword}>
+                      修改密码
+                    </button>
+                    <button
+                      className="ghost"
+                      type="button"
+                      onClick={() => avatarUploadRef.current?.click()}
+                    >
+                      修改头像
+                    </button>
+                    <input
+                      ref={avatarUploadRef}
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={handleAvatarInput}
+                    />
+                  </>
+                ) : null}
+                <button className="ghost" type="button" onClick={logout}>
+                  退出登录
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
+      ) : null}
 
       <Routes>
         <Route path="/" element={<HomePage />} />
